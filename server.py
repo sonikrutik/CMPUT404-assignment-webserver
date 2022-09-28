@@ -1,4 +1,5 @@
 #  coding: utf-8 
+from genericpath import isfile
 import socketserver, os, re
 
 # Copyright 2013 Abram Hindle, Eddie Antonio Santos
@@ -32,36 +33,85 @@ class MyWebServer(socketserver.BaseRequestHandler):
     def handle(self):
         self.data = self.request.recv(1024).strip()
         print ("Got a request of: %s\n" % self.data)
-        self.request.sendall(bytearray("OK",'utf-8'))
+        #self.request.sendall(bytearray("OK",'utf-8'))
 
-        try: 
-            requestName = self.getServerToken()
-            if requestName == 'GET':
-                
-                self.do405(requestName)
-            else:
-                raise Exception(requestName)
-
-        except Exception as e:
-            statusCode = e.args
-            self.do405(statusCode)
+        requestName = self.getServerToken()
+        if requestName == 'GET':
             
+            path = 'www' + re.findall(r'GET (.+?) HTTP', self.data.decode('utf-8'))[0]
+            
+            #print(path)
 
-    def doGET(self, requestName):
-        body = '<html><title>{fname}</title><h1>{fname}</h1>Only GET allowed'.format(fname = requestName)
-        response = 'HTTP/1.1 200 GOOD SHIT\r\nContent-Length: ' + str(len(body.encode('utf-8'))) + '\r\nContent-Type: text/html\r\n\r\n' + body
-        self.request.sendall(bytearray(response, 'utf-8'))
+            if path[-1] == '/':
+                path += 'index.html'
+
+            #print(path)
+            isDir = os.path.isdir(path) #check if the path is a directory
+            isFile = os.path.isfile(path) #check if the path is a file!
+            #print(isDir, isFile, os.path.realpath(path))
+            
+            webPath = os.path.realpath('www') # gets path until www
+            subPath = os.path.realpath(path).startswith(webPath) # checks if path starts and ends until www (a path is found or not 404)
+            #print(subPath, os.path.realpath(path), webPath)
+            #print(requestName, os.getcwd(), "\n", path)
+            
+            if not isDir and isFile and subPath:
+                print("200")
+                self.doGET(path)
+
+            elif isDir and not isFile and subPath:
+                self.do301(301, "Moved Permenantly", path[4:] + '/') # if direcoty exists but not file raise 301 to say file has moved
+            
+            else:
+                self.do404(404, "Not Found")
+                
+        elif requestName == 405:
+            self.do405(requestName)
+
         
+
+            
+    def mimeType(self, path):
+        if path.endswith('.html'):
+            return 'text/html'
+
+        elif path.endswith('.css'):
+            return 'text/css'
+
+        else: 
+            return ''
+
+    
+    def doGET(self, path):
+        mime = self.mimeType(path)
+                    
+        with open(path, 'r') as rfile:
+            fileData = rfile.read()
+
+        response = 'HTTP/1.1 200 OK\r\nContent-Length: ' + str(os.path.getsize(path)) + '\r\nContent-Type: ' + mime + '\r\n\r\n' + fileData
+        self.request.sendall(bytearray(response, 'utf-8'))
+
     def do405(self, statusCode):
+        print("405")
         body = '<html><title>{fname}</title><h1>{fname}</h1>Only GET allowed'.format(fname = statusCode)
         response = 'HTTP/1.1 {fname}\r\nContent-Length: '.format(fname = statusCode) + str(len(body.encode('utf-8'))) + '\r\nContent-Type: text/html\r\n\r\n' + body
+        self.request.sendall(bytearray(response, 'utf-8'))
+
+    def do301(self, statusCode, Message, location):
+        print("301")
+        body = '<html><title>{code} {message}</title><h1>{code} {message}</h1>'.format(code = statusCode, message = Message)
+        response = 'HTTP/1.1 {code} {message}\r\nLocation: '.format(code = statusCode, message = Message) + location + '\r\nContent-Length: ' + str(len(body.encode('utf-8'))) + '\r\nContent-Type: text/html\r\n\r\n' + body
+
+    def do404(self, statusCode, Message):
+        print("404")
+        body = '<html><title>{code} {message}</title><h1>{code} {message}</h1>'.format(code = statusCode, message = Message)
+        response = 'HTTP/1.1 {code} {message}\r\nContent-Length: '.format(code = statusCode, message = Message) + str(len(body.encode('utf-8'))) + '\r\nContent-Type: text/html\r\n\r\n' + body
         self.request.sendall(bytearray(response, 'utf-8'))
 
     def getServerToken(self):
 
         serverToken = re.findall(r'^(.+?) ', self.data.decode('utf-8'))[0]
         if serverToken == 'GET': 
-            print("COCK AND BALLS MFER")
             return serverToken
         
         return 405
