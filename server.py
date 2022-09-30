@@ -36,11 +36,19 @@ class MyWebServer(socketserver.BaseRequestHandler):
         #self.request.sendall(bytearray("OK",'utf-8'))
 
         requestName = self.getServerToken()
-        if requestName == 'GET':
-            
+        # if requestName == 'GET':
+        if requestName != 'GET':
+            self.do405(requestName)
+
+        if re.findall(r'GET (.+?) HTTP', self.data.decode('utf-8')) == []:
+            self.do404(404, "Not Found")
+        
+        else:
             path = 'www' + re.findall(r'GET (.+?) HTTP', self.data.decode('utf-8'))[0]
-            
-            #print(path)
+            print(re.findall(r'GET (.+?) HTTP', self.data.decode('utf-8')))
+            #path = "./www/" + self.request.recv(1024).decode("utf-8").strip().split()[1][1:]
+
+            print(path)
 
             if path[-1] == '/':
                 path += 'index.html'
@@ -50,13 +58,12 @@ class MyWebServer(socketserver.BaseRequestHandler):
             isFile = os.path.isfile(path) #check if the path is a file!
             #print(isDir, isFile, os.path.realpath(path))
             
-            webPath = os.path.realpath('www') # gets path until www
-            subPath = os.path.realpath(path).startswith(webPath) # checks if path starts and ends until www (a path is found or not 404)
+            onlyWebPath = os.path.realpath('www') # gets path until www
+            subPath = os.path.realpath(path).startswith(onlyWebPath) # checks if path starts and ends until www (a path is found or not 404)
             #print(subPath, os.path.realpath(path), webPath)
             #print(requestName, os.getcwd(), "\n", path)
-            
+            print(path[4:], "ABDJHASDKILASDA")
             if not isDir and isFile and subPath:
-                print("200")
                 self.doGET(path)
 
             elif isDir and not isFile and subPath:
@@ -65,9 +72,7 @@ class MyWebServer(socketserver.BaseRequestHandler):
             else:
                 self.do404(404, "Not Found")
                 
-        elif requestName == 405:
-            self.do405(requestName)
-
+        
         
 
             
@@ -83,6 +88,8 @@ class MyWebServer(socketserver.BaseRequestHandler):
 
     
     def doGET(self, path):
+        print("200")
+
         mime = self.mimeType(path)
                     
         with open(path, 'r') as rfile:
@@ -93,7 +100,7 @@ class MyWebServer(socketserver.BaseRequestHandler):
 
     def do405(self, statusCode):
         print("405")
-        body = '<html><title>{fname}</title><h1>{fname}</h1>Only GET allowed'.format(fname = statusCode)
+        body = '<html><title>{fname} Method Not Allowed</title><h1>{fname}</h1>'.format(fname = statusCode)
         response = 'HTTP/1.1 {fname}\r\nContent-Length: '.format(fname = statusCode) + str(len(body.encode('utf-8'))) + '\r\nContent-Type: text/html\r\n\r\n' + body
         self.request.sendall(bytearray(response, 'utf-8'))
 
@@ -101,7 +108,7 @@ class MyWebServer(socketserver.BaseRequestHandler):
         print("301")
         body = '<html><title>{code} {message}</title><h1>{code} {message}</h1>'.format(code = statusCode, message = Message)
         response = 'HTTP/1.1 {code} {message}\r\nLocation: '.format(code = statusCode, message = Message) + location + '\r\nContent-Length: ' + str(len(body.encode('utf-8'))) + '\r\nContent-Type: text/html\r\n\r\n' + body
-
+        self.request.sendall(bytearray(response, 'utf-8'))
     def do404(self, statusCode, Message):
         print("404")
         body = '<html><title>{code} {message}</title><h1>{code} {message}</h1>'.format(code = statusCode, message = Message)
